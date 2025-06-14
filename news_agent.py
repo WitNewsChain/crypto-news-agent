@@ -1,92 +1,57 @@
 import os
-import openai
-import requests
-import feedparser
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
 import json
+import gspread
+from google.oauth2.service_account import Credentials
+import openai
+from datetime import datetime
 
-# إعداد المتغيرات من ملف البيئة
-from dotenv import load_dotenv
-load_dotenv()
+# تحميل المفاتيح من GitHub Secrets
+openai.api_key = os.environ["OPENAI_API_KEY"]
+GOOGLE_SHEET_ID = os.environ["GOOGLE_SHEET_ID"]
+GOOGLE_CREDENTIALS_FILE = "google_credentials.json"
 
-# إعداد المفاتيح
-openai.api_key = os.getenv("OPENAI_API_KEY")
-GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
-GOOGLE_CREDENTIALS_FILE = os.getenv("GOOGLE_CREDENTIALS_FILE")
+# حفظ محتوى GOOGLE_CREDENTIALS كنص إلى ملف json
+with open(GOOGLE_CREDENTIALS_FILE, "w") as f:
+    f.write(os.environ["GOOGLE_CREDENTIALS"])
 
 # إعداد Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDENTIALS_FILE, scope)
+creds = Credentials.from_service_account_file(GOOGLE_CREDENTIALS_FILE, scopes=scope)
 client = gspread.authorize(creds)
 sheet = client.open_by_key(GOOGLE_SHEET_ID).sheet1
 
-# تحميل الأخبار التي تم نشرها مسبقًا
+# تحميل التغريدات التي نُشرت مسبقًا
 if os.path.exists("processed_articles.json"):
     with open("processed_articles.json", "r") as f:
         processed_articles = json.load(f)
 else:
     processed_articles = []
 
-# خلاصة الأخبار
-feed_url = "https://decrypt.co/feed"
-feed = feedparser.parse(feed_url)
+rows = sheet.get_all_records()
 
-def build_tweet_prompt(title):
-    return f"""Write a single tweet (max 280 characters) summarizing the crypto headline below.
-- Do NOT include quotes (" ") around the text.
-- Do NOT include any links in the tweet body.
-- Do include relevant hashtags.
-- Write in a clear, engaging human tone.
+for row in rows:
+    url = row["url"]
+    tweet = row["tweet"]
+    has_image = row.get("image", "") != ""
 
-Headline:
-{title}
-"""
-
-def summarize_with_gpt(prompt):
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "You're a helpful assistant that summarizes crypto news into professional tweets."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.7,
-        max_tokens=150
-    )
-    return response.choices[0].message.content.strip()
-
-# معالجة كل خبر جديد
-new_entries = []
-for entry in feed.entries:
-    title = entry.title
-    link = entry.link
-
-    if link in processed_articles:
+    if url in processed_articles:
         continue
 
-    prompt = build_tweet_prompt(title)
-    tweet_text = summarize_with_gpt(prompt)
-
-    # تحقق إن كان يحتوي على صورة
-    has_image = "media_content" in entry or "image" in entry.get("summary", "")
-
-    # بناء التغريدة النهائية
+    # 🟦 تنسيق التغريدة حسب وجود الصورة
     if not has_image:
-        tweet = f"{tweet_text}\n{link}"
+        tweet_to_post = f"{tweet}\n{url}"
     else:
-        tweet = tweet_text
+        tweet_to_post = tweet  # اللينك سيظهر مع الصورة تلقائيًا
 
-    # إضافة إلى الجدول
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    sheet.append_row([timestamp, title, link, tweet])
+    print(f"نشر التغريدة: {tweet_to_post}")
 
-    # حفظ كمعالج
-    processed_articles.append(link)
-    new_entries.append(link)
+    # ✳️ هنا يتم النشر الحقيقي باستخدام واجهة تويتر — مبدئيًا مطبوعة فقط
+    # send_to_twitter(tweet_to_post, image_url) ← لاحقًا عند توفر النشر
 
-# حفظ القائمة المحدثة
-with open("processed_articles.json", "w") as f:
-    json.dump(processed_articles, f)
+    processed_articles.append(url)
 
-print(f"{len(new_entries)} new tweets added to Google Sheets.")
+    # حفظ الحالة بعد كل تغريدة منشورة
+    with open("processed_articles.json", "w") as f:
+        json.dump(processed_articles, f, ensure_ascii=False, indent=2)
+
+    break  # ننشر تغريدة واحدة فقط كل تشغيل
