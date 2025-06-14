@@ -1,0 +1,7 @@
+services:
+  - type: cron
+    name: crypto-news-agent
+    schedule: "0 * * * *"
+    runtime: python
+    buildCommand: ""
+    startCommand: "python news_agent.py"
