@@ -1,16 +1,16 @@
-name: Run News Agent
+name: Run Crypto News Agent
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # كل ٥ دقائق
-  workflow_dispatch:        # لتشغيله يدويًا من GitHub
+    - cron: '*/5 * * * *'  # ⏱️ تشغيل كل 5 دقائق
+  workflow_dispatch:        # ⏱️ إمكانية التشغيل اليدوي أيضًا
 
 jobs:
   run-script:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Set up Python
@@ -23,14 +23,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Create credentials JSON
+      - name: Save Google credentials from secret
         run: |
-          echo "${{ secrets.GOOGLE_CREDENTIALS }}" > ${{ secrets.GOOGLE_CREDENTIALS_FILE }}
+          echo "$GOOGLE_CREDENTIALS" > ${{ github.workspace }}/google_credentials.json
 
       - name: Run news agent script
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_CREDENTIALS_FILE: ${{ secrets.GOOGLE_CREDENTIALS_FILE }}
+          GOOGLE_CREDENTIALS_FILE: ${{ github.workspace }}/google_credentials.json
         run: |
           python news_agent.py
