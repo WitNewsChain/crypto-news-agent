@@ -2,35 +2,35 @@ name: Run News Agent
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # كل 5 دقائق
-  workflow_dispatch:       # لتشغيله يدويًا من GitHub أيضاً
+    - cron: '*/5 * * * *'  # كل ٥ دقائق
+  workflow_dispatch:        # لتشغيله يدويًا من GitHub
 
 jobs:
   run-script:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-    - name: Create credentials JSON
-      run: |
-        echo "${{ secrets.GOOGLE_CREDENTIALS }}" > ${{ secrets.GOOGLE_CREDENTIALS_FILE }}
+      - name: Create credentials JSON
+        run: |
+          echo "${{ secrets.GOOGLE_CREDENTIALS }}" > ${{ secrets.GOOGLE_CREDENTIALS_FILE }}
 
-    - name: Run news agent script
-      env:
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-        GOOGLE_CREDENTIALS_FILE: ${{ secrets.GOOGLE_CREDENTIALS_FILE }}
-      run: |
-        python news_agent.py
+      - name: Run news agent script
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_CREDENTIALS_FILE: ${{ secrets.GOOGLE_CREDENTIALS_FILE }}
+        run: |
+          python news_agent.py
