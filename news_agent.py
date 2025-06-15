@@ -7,28 +7,23 @@ from datetime import datetime
 from google.oauth2.service_account import Credentials
 from openai import OpenAI
 
-# إعداد متغيرات البيئة من GitHub Secrets
 openai_api_key = os.environ["OPENAI_API_KEY"]
 GOOGLE_SHEET_ID = os.environ["GOOGLE_SHEET_ID"]
 GOOGLE_CREDENTIALS_FILE = os.environ["GOOGLE_CREDENTIALS_FILE"]
 
-# إعداد الاتصال بـ OpenAI
 client = OpenAI(api_key=openai_api_key)
 
-# إعداد Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = Credentials.from_service_account_file(GOOGLE_CREDENTIALS_FILE, scopes=scope)
 sheet_client = gspread.authorize(creds)
 sheet = sheet_client.open_by_key(GOOGLE_SHEET_ID).sheet1
 
-# تحميل المقالات المعالجة مسبقاً
 if os.path.exists("processed_articles.json"):
     with open("processed_articles.json", "r") as f:
         processed_articles = json.load(f)
 else:
     processed_articles = []
 
-# المصادر (أهم 5 مصادر أخبار كريبتو)
 feeds = [
     "https://decrypt.co/feed",
     "https://cointelegraph.com/rss",
@@ -37,14 +32,13 @@ feeds = [
     "https://bitcoinmagazine.com/.rss/full/"
 ]
 
-# يساعد على توليد تغريدة احترافية
 def summarize_with_gpt(prompt):
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[
             {
                 "role": "system",
-                "content": "أنت مساعد ذكي تقوم بتلخيص أهم أخبار الكريبتو على شكل تغريدات احترافية جذابة دون روابط داخل النص."
+                "content": "You are a smart assistant summarizing the most important crypto news as professional tweets with no links inside the text."
             },
             {"role": "user", "content": prompt}
         ],
@@ -53,12 +47,11 @@ def summarize_with_gpt(prompt):
     )
     return response.choices[0].message.content.strip()
 
-# يحدد هل الخبر مهم فعلاً
 def is_important(title):
     importance_prompt = (
-        f"هل العنوان التالي يمثل خبرًا مهمًا جدًا في عالم الكريبتو اليوم؟\n\n"
-        f"العنوان: {title}\n\n"
-        "أجب فقط بـ نعم أو لا."
+        f"Is the following crypto headline very important today?\n\n"
+        f"Headline: {title}\n\n"
+        "Answer with only Yes or No."
     )
     response = client.chat.completions.create(
         model="gpt-4",
@@ -68,9 +61,8 @@ def is_important(title):
         temperature=0
     )
     answer = response.choices[0].message.content.lower()
-    return "نعم" in answer or "yes" in answer
+    return "yes" in answer
 
-# يجمع التغريدات ويضيفها للجدول
 new_entries = []
 
 for feed_url in feeds:
@@ -86,30 +78,23 @@ for feed_url in feeds:
             continue
 
         prompt = (
-            f"""قم بتلخيص العنوان التالي إلى تغريدة احترافية (280 حرفًا كحد أقصى). 
-- لا تضع روابط داخل التغريدة.
-- اجعلها جذابة، بصيغة بشرية.
-- أضف وسومًا مناسبة.
-
-العنوان:
-{title}
-"""
+            f"Summarize the following crypto headline into a professional tweet (max 280 characters). "
+            f"Do not include links in the tweet. Make it engaging and human-like. Add relevant hashtags.\n\n"
+            f"Headline:\n{title}"
         )
         tweet = summarize_with_gpt(prompt)
         final_tweet = f"{tweet}\n{link}"
 
         timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         sheet.append_row([timestamp, title, link, final_tweet])
-        print(f"✅ تم نشر: {title}")
+        print(f"✅ Posted: {title}")
 
         processed_articles.append(link)
         new_entries.append(link)
 
-        # فاصل زمني بين التغريدات
         time.sleep(10)
 
-# حفظ القائمة
 with open("processed_articles.json", "w") as f:
     json.dump(processed_articles, f, ensure_ascii=False, indent=2)
 
-print(f"\n✅ أُضيف {len(new_entries)} خبرًا مهمًا إلى Google Sheets.")
+print(f"\n✅ {len(new_entries)} important articles added to Google Sheets.")
